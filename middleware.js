@@ -1,36 +1,38 @@
-import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+import { NextResponse } from "next/server"
+import jwt from "jsonwebtoken"
 
 export function middleware(req) {
-  const token = req.cookies.get("token")?.value;
-  const { pathname } = req.nextUrl;
+  const token = req.cookies.get("token")?.value
 
-  // Halaman yang boleh diakses tanpa login
-  const publicPaths = ["/login", "/_next", "/favicon.ico"];
-
-  if (publicPaths.some(path => pathname.startsWith(path))) {
-    return NextResponse.next();
+  if (!token && req.nextUrl.pathname.startsWith("/dasbor")) {
+    return NextResponse.redirect(new URL("/auth/login", req.url))
   }
 
-  if (!token) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET)
 
-  try {
-    const user = jwt.verify(token, process.env.JWT_SECRET);
+      if (
+        req.nextUrl.pathname === "/dasboradmins" &&
+        decoded.role !== "owners"
+      ) {
+        return NextResponse.redirect(new URL("/dasborUser", req.url))
+      }
 
-    if (pathname === "/createakun" &&
-        !["developers","owners","resellers"].includes(user.role)) {
-      return NextResponse.redirect(new URL("/", req.url));
+      if (
+        req.nextUrl.pathname === "/dasborUser" &&
+        decoded.role !== "members"
+      ) {
+        return NextResponse.redirect(new URL("/dasboradmins", req.url))
+      }
+    } catch {
+      return NextResponse.redirect(new URL("/auth/login", req.url))
     }
-
-  } catch {
-    return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  return NextResponse.next();
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/((?!api).*)"],
-};
+  matcher: ["/dasborUser", "/dasboradmins"]
+}
