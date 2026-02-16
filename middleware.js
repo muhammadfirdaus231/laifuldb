@@ -11,6 +11,5 @@ export function middleware(req) {
 }
 
 export const config = {
-  matcher: ["/dasborUser", "/dasboradmins"],
-}  matcher: ["/dasborUser", "/dasboradmins"]
+matcher: ["/dasborUser", "/dasboradmins"],
 }
