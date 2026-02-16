@@ -3,32 +3,26 @@ import jwt from "jsonwebtoken";
 
 export function middleware(req) {
   const token = req.cookies.get("token")?.value;
-  const path = req.nextUrl.pathname;
+  const { pathname } = req.nextUrl;
 
-  if (!token && path !== "/login") {
+  // Halaman yang boleh diakses tanpa login
+  const publicPaths = ["/login", "/_next", "/favicon.ico"];
+
+  if (publicPaths.some(path => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+
+  if (!token) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
   try {
     const user = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (path.startsWith("/createakun")) {
-      if (!["developers","owners","resellers"].includes(user.role)) {
-        return NextResponse.redirect(new URL("/", req.url));
-      }
+    if (pathname === "/createakun" &&
+        !["developers","owners","resellers"].includes(user.role)) {
+      return NextResponse.redirect(new URL("/", req.url));
     }
-
-    if (path.startsWith("/dasbordevs") && user.role !== "developers")
-      return NextResponse.redirect(new URL("/", req.url));
-
-    if (path.startsWith("/dasborowners") && user.role !== "owners")
-      return NextResponse.redirect(new URL("/", req.url));
-
-    if (path.startsWith("/dasborResellers") && user.role !== "resellers")
-      return NextResponse.redirect(new URL("/", req.url));
-
-    if (path.startsWith("/dasborUser") && user.role !== "members")
-      return NextResponse.redirect(new URL("/", req.url));
 
   } catch {
     return NextResponse.redirect(new URL("/login", req.url));
@@ -38,5 +32,5 @@ export function middleware(req) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|api|favicon.ico).*)"],
+  matcher: ["/((?!api).*)"],
 };
