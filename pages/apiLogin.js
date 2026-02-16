@@ -1,21 +1,40 @@
-import { db } from "../lib/firebase"
+export const config = {
+  runtime: "nodejs",
+}
+
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import cookie from "cookie"
+import { getDb } from "../lib/firebase"
 
 export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" })
+  }
+
+  const db = await getDb()
   const { username, password } = req.body
 
-  const snap = await db.collection("users")
+  if (!username || !password) {
+    return res.status(400).json({ error: "Missing credentials" })
+  }
+
+  const snap = await db
+    .collection("users")
     .where("username", "==", username)
+    .limit(1)
     .get()
 
-  if (snap.empty) return res.json({ error: "User not found" })
+  if (snap.empty) {
+    return res.status(400).json({ error: "User not found" })
+  }
 
   const user = snap.docs[0].data()
   const valid = await bcrypt.compare(password, user.password)
 
-  if (!valid) return res.json({ error: "Wrong password" })
+  if (!valid) {
+    return res.status(400).json({ error: "Wrong password" })
+  }
 
   const token = jwt.sign(
     { username: user.username, role: user.role },
@@ -23,12 +42,13 @@ export default async function handler(req, res) {
     { expiresIn: "1d" }
   )
 
-  res.setHeader("Set-Cookie",
+  res.setHeader(
+    "Set-Cookie",
     cookie.serialize("token", token, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       path: "/",
-      sameSite: "strict"
+      sameSite: "strict",
     })
   )
 
