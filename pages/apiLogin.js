@@ -1,23 +1,25 @@
-export const config = {
-  runtime: "nodejs",
-}
+export const config = { runtime: "nodejs" }
 
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import cookie from "cookie"
-import { getDb } from "../lib/firebase"
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" })
+  const admin = require("firebase-admin")
+
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      }),
+    })
   }
 
-  const db = await getDb()
+  const db = admin.firestore()
+
   const { username, password } = req.body
-
-  if (!username || !password) {
-    return res.status(400).json({ error: "Missing credentials" })
-  }
 
   const snap = await db
     .collection("users")
@@ -25,16 +27,12 @@ export default async function handler(req, res) {
     .limit(1)
     .get()
 
-  if (snap.empty) {
-    return res.status(400).json({ error: "User not found" })
-  }
+  if (snap.empty) return res.status(400).json({ error: "User not found" })
 
   const user = snap.docs[0].data()
   const valid = await bcrypt.compare(password, user.password)
 
-  if (!valid) {
-    return res.status(400).json({ error: "Wrong password" })
-  }
+  if (!valid) return res.status(400).json({ error: "Wrong password" })
 
   const token = jwt.sign(
     { username: user.username, role: user.role },
